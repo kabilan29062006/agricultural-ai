@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agricultural AI</title>
+<style>
+:root {
+  --bg: #f4f7f2;
+  --panel: #ffffff;
+  --text: #1e2a20;
+  --muted: #6b756d;
+  --accent: #2f7d32;
+  --accent-dark: #256528;
+  --user: #e5f4e6;
+  --border: #dfe7df;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; font-family: Inter, system-ui, Arial, sans-serif;
+  background: linear-gradient(135deg, #edf6ee, var(--bg));
+  color: var(--text); display: flex; justify-content: center;
+}
+.app {
+  width: min(100%, 1000px); height: 100vh; display: flex; flex-direction: column;
+  background: var(--panel); box-shadow: 0 0 30px rgba(0,0,0,.06);
+}
+.header {
+  padding: 18px 22px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.logo {
+  width: 44px; height: 44px; border-radius: 14px; background: var(--accent);
+  color: white; display: grid; place-items: center; font-size: 22px;
+}
+.header h1 { margin: 0; font-size: 19px; }
+.header p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+.chat {
+  flex: 1; overflow-y: auto; padding: 24px; scroll-behavior: smooth;
+}
+.message {
+  display: flex; margin: 0 auto 16px; max-width: 850px;
+}
+.message.user { justify-content: flex-end; }
+.bubble {
+  max-width: min(80%, 720px); padding: 12px 15px; border-radius: 16px;
+  line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.assistant .bubble { background: #f0f4f0; border: 1px solid var(--border); }
+.user .bubble { background: var(--user); border: 1px solid #cfe6d0; }
+.composer {
+  padding: 14px 18px; border-top: 1px solid var(--border); background: #fff;
+}
+.form {
+  display: flex; gap: 10px; max-width: 850px; margin: auto;
+}
+textarea {
+  flex: 1; resize: none; min-height: 48px; max-height: 140px;
+  border: 1px solid var(--border); border-radius: 14px; padding: 13px 14px;
+  font: inherit; outline: none;
+}
+textarea:focus { border-color: var(--accent); }
+button {
+  border: 0; border-radius: 14px; padding: 0 20px; background: var(--accent);
+  color: white; font-weight: 700; cursor: pointer;
+}
+button:hover { background: var(--accent-dark); }
+button:disabled { opacity: .6; cursor: not-allowed; }
+.typing { color: var(--muted); font-size: 13px; margin: 0 auto 12px; max-width: 850px; }
+.error { color: #a33; }
+@media (max-width: 600px) {
+  .chat { padding: 15px; }
+  .bubble { max-width: 90%; }
+  .header { padding: 14px 16px; }
+  .composer { padding: 10px; }
+  .form { gap: 7px; }
+  button { padding: 0 15px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="logo">🌱</div>
+    <div>
+      <h1 id="title">Agricultural AI</h1>
+      <p>Domain-focused agriculture assistant</p>
+    </div>
+  </header>
+
+  <main id="chat" class="chat" aria-live="polite">
+    <div class="message assistant">
+      <div class="bubble">Hello! I’m Agricultural AI. Ask me an agriculture-related question.</div>
+    </div>
+  </main>
+
+  <div id="typing" class="typing" hidden>Assistant is typing…</div>
+
+  <section class="composer">
+    <form id="form" class="form">
+      <textarea id="message" rows="1" placeholder="Ask an agriculture question…" required></textarea>
+      <button id="send" type="submit">Send</button>
+    </form>
+  </section>
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+const form = document.getElementById("form");
+const input = document.getElementById("message");
+const send = document.getElementById("send");
+const typing = document.getElementById("typing");
+
+const history = [];
+
+function addMessage(role, content) {
+  const wrapper = document.createElement("div");
+  wrapper.className = `message ${role}`;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = content;
+  wrapper.appendChild(bubble);
+  chat.appendChild(wrapper);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function setBusy(busy) {
+  send.disabled = busy;
+  input.disabled = busy;
+  typing.hidden = !busy;
+}
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = input.value.trim();
+  if (!message || send.disabled) return;
+
+  addMessage("user", message);
+  history.push({ role: "user", content: message });
+  input.value = "";
+  setBusy(true);
+
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Request failed.");
+
+    addMessage("assistant", data.reply);
+    history.push({ role: "assistant", content: data.reply });
+  } catch (error) {
+    const text = error instanceof Error ? error.message : "Something went wrong.";
+    addMessage("assistant", `Error: ${text}`);
+  } finally {
+    setBusy(false);
+    input.focus();
+  }
+});
+
+input.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    form.requestSubmit();
+  }
+});
+</script>
+</body>
+</html>
